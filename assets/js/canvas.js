@@ -9,6 +9,8 @@ const canvasHook = {
 
     const bunny = Sprite.from('https://pixijs.com/assets/bunny.png');
 
+    let players = {}
+
     const canvas_center = {x: this.app.renderer.width / 2, y: this.app.renderer.height / 2}
 
     // Setup the position of the bunny
@@ -22,6 +24,20 @@ const canvasHook = {
     this.handleEvent("player-position", (data) => {
       bunny.x = canvas_center.x + data.x
       bunny.y = canvas_center.y + data.y
+    })
+
+    this.handleEvent("close-players-position", (data) => {
+      if(Object.hasOwn(players, data.name)) {
+        const sprite = players[data.name]
+        sprite.x = canvas_center.x + data.x
+        sprite.y = canvas_center.y + data.y
+      } else {
+        const sprite = Sprite.from('https://pixijs.com/assets/bunny.png');
+        sprite.x = canvas_center.x;
+        sprite.y = canvas_center.y;
+        players[data.name] = sprite;
+        this.app.stage.addChild(sprite);
+      }
     })
   }
 }

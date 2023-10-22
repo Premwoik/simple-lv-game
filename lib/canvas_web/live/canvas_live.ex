@@ -3,6 +3,8 @@ defmodule CanvasWeb.CanvasLive do
 
   require Logger
 
+  alias Phoenix.PubSub
+
   # 10 pixels
   @move_step 10
   # 100 milliseconds
@@ -14,6 +16,13 @@ defmodule CanvasWeb.CanvasLive do
   @move_down_keys ~w(s ArrowDown)
   @move_up_keys ~w(w ArrowUp)
   @move_keys Enum.concat([@move_left_keys, @move_right_keys, @move_down_keys, @move_up_keys])
+
+  # Topics
+  @players_topic "canvas:players"
+
+  # JS Events
+  @position_update_event "player-position"
+  @close_players_position_update_event "close-players-position"
 
   @impl true
   def render(assigns) do
@@ -33,17 +42,37 @@ defmodule CanvasWeb.CanvasLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    :ok = PubSub.subscribe(Canvas.PubSub, @players_topic)
+
     data = %{
+      players: %{},
+      player_name: Ecto.UUID.generate(),
       player_position: %{x: 0, y: 0},
       move_timestamp: timestamp()
     }
 
-    {:ok, assign(socket, data)}
+    {:ok, socket |> assign(data) |> broadcast_player_position()}
   end
 
   @impl true
   def handle_event("button-press", %{"key" => key}, socket) do
     {:noreply, handle_button_press(key, socket)}
+  end
+
+  @impl true
+  def handle_info({:player_position, data}, socket) do
+    socket =
+      if data.name == socket.assigns.player_name do
+        socket
+      else
+        IO.puts("Player position: #{inspect(data)}")
+
+        socket
+        |> assign(players: Map.put(socket.assigns.players, data.name, data))
+        |> push_event(@close_players_position_update_event, data)
+      end
+
+    {:noreply, socket}
   end
 
   def handle_button_press(key, socket) when key in @move_keys do
@@ -53,6 +82,7 @@ defmodule CanvasWeb.CanvasLive do
       key
       |> handle_move(socket)
       |> assign(move_timestamp: now)
+      |> broadcast_player_position()
     else
       socket
     end
@@ -68,7 +98,7 @@ defmodule CanvasWeb.CanvasLive do
 
     socket
     |> assign(:player_position, position)
-    |> push_event("player-position", position)
+    |> push_event(@position_update_event, position)
   end
 
   def handle_move(key, socket) when key in @move_down_keys do
@@ -77,7 +107,7 @@ defmodule CanvasWeb.CanvasLive do
 
     socket
     |> assign(:player_position, position)
-    |> push_event("player-position", position)
+    |> push_event(@position_update_event, position)
   end
 
   def handle_move(key, socket) when key in @move_left_keys do
@@ -86,7 +116,7 @@ defmodule CanvasWeb.CanvasLive do
 
     socket
     |> assign(:player_position, position)
-    |> push_event("player-position", position)
+    |> push_event(@position_update_event, position)
   end
 
   def handle_move(key, socket) when key in @move_right_keys do
@@ -95,10 +125,24 @@ defmodule CanvasWeb.CanvasLive do
 
     socket
     |> assign(:player_position, position)
-    |> push_event("player-position", position)
+    |> push_event(@position_update_event, position)
   end
 
   def timestamp do
     System.os_time(:millisecond)
+  end
+
+  def broadcast_player_position(socket) do
+    assigns = socket.assigns
+
+    data = %{
+      x: assigns.player_position.x,
+      y: assigns.player_position.y,
+      name: assigns.player_name
+    }
+
+    :ok = PubSub.broadcast(Canvas.PubSub, @players_topic, {:player_position, data})
+
+    socket
   end
 end
