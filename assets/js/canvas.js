@@ -9,31 +9,19 @@ const canvasHook = {
 
     const bunny = Sprite.from('https://pixijs.com/assets/bunny.png');
 
-    // Setup the position of the bunny
-    bunny.x = this.app.renderer.width / 2;
-    bunny.y = this.app.renderer.height / 2;
+    const canvas_center = {x: this.app.renderer.width / 2, y: this.app.renderer.height / 2}
 
-    // Rotate around the center
-    bunny.anchor.x = 0.5;
-    bunny.anchor.y = 0.5;
+    // Setup the position of the bunny
+    bunny.x = canvas_center.x;
+    bunny.y = canvas_center.y;
 
     // Add the bunny to the scene we are building
     this.app.stage.addChild(bunny);
 
-
-
     // This creates a texture from a 'bunny.png' image
-    this.handleEvent("move-up", (event) => {
-      bunny.y -= 10;
-    })
-    this.handleEvent("move-down", (event) => {
-      bunny.y += 10;
-    })
-    this.handleEvent("move-left", (event) => {
-      bunny.x -= 10;
-    })
-    this.handleEvent("move-right", (event) => {
-      bunny.x += 10;
+    this.handleEvent("player-position", (data) => {
+      bunny.x = canvas_center.x + data.x
+      bunny.y = canvas_center.y + data.y
     })
   }
 }

@@ -3,6 +3,18 @@ defmodule CanvasWeb.CanvasLive do
 
   require Logger
 
+  # 10 pixels
+  @move_step 10
+  # 100 milliseconds
+  @move_threshold 50
+
+  # Move keys
+  @move_left_keys ~w(a ArrowLeft)
+  @move_right_keys ~w(d ArrowRight)
+  @move_down_keys ~w(s ArrowDown)
+  @move_up_keys ~w(w ArrowUp)
+  @move_keys Enum.concat([@move_left_keys, @move_right_keys, @move_down_keys, @move_up_keys])
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -22,14 +34,12 @@ defmodule CanvasWeb.CanvasLive do
   @impl true
   def mount(_params, _session, socket) do
     data = %{
+      player_position: %{x: 0, y: 0},
       move_timestamp: timestamp()
     }
 
     {:ok, assign(socket, data)}
   end
-
-  @move_keys ~w(w a s d)
-  @move_threshold 100
 
   @impl true
   def handle_event("button-press", %{"key" => key}, socket) do
@@ -52,20 +62,40 @@ defmodule CanvasWeb.CanvasLive do
     socket
   end
 
-  def handle_move("w", socket) do
-    push_event(socket, "move-up", %{})
+  def handle_move(key, socket) when key in @move_up_keys do
+    old_position = socket.assigns.player_position
+    position = %{old_position | y: old_position.y - @move_step}
+
+    socket
+    |> assign(:player_position, position)
+    |> push_event("player-position", position)
   end
 
-  def handle_move("s", socket) do
-    push_event(socket, "move-down", %{})
+  def handle_move(key, socket) when key in @move_down_keys do
+    old_position = socket.assigns.player_position
+    position = %{old_position | y: old_position.y + @move_step}
+
+    socket
+    |> assign(:player_position, position)
+    |> push_event("player-position", position)
   end
 
-  def handle_move("a", socket) do
-    push_event(socket, "move-left", %{})
+  def handle_move(key, socket) when key in @move_left_keys do
+    old_position = socket.assigns.player_position
+    position = %{old_position | x: old_position.x - @move_step}
+
+    socket
+    |> assign(:player_position, position)
+    |> push_event("player-position", position)
   end
 
-  def handle_move("d", socket) do
-    push_event(socket, "move-right", %{})
+  def handle_move(key, socket) when key in @move_right_keys do
+    old_position = socket.assigns.player_position
+    position = %{old_position | x: old_position.x + @move_step}
+
+    socket
+    |> assign(:player_position, position)
+    |> push_event("player-position", position)
   end
 
   def timestamp do
