@@ -5,10 +5,14 @@ defmodule CanvasWeb.CanvasLive do
 
   alias Phoenix.PubSub
 
-  # 10 pixels
-  @move_step 10
-  # 100 milliseconds
+  alias Canvas.Player
+
+  # pixels
+  @move_step 20
+  # milliseconds
   @move_threshold 50
+  # milliseconds
+  @update_interval 500
 
   # Move keys
   @move_left_keys ~w(a ArrowLeft)
@@ -21,13 +25,12 @@ defmodule CanvasWeb.CanvasLive do
   @players_topic "canvas:players"
 
   # JS Events
-  @position_update_event "player-position"
-  @close_players_position_update_event "close-players-position"
+  @position_update_event "update-player-position"
+  @delete_player_event "delete-player"
 
   @impl true
   def render(assigns) do
     ~H"""
-    <h1>Hello canvas!</h1>
     <.focus_wrap id="game">
       <div
         id="game-canvas"
@@ -46,12 +49,20 @@ defmodule CanvasWeb.CanvasLive do
 
     data = %{
       players: %{},
-      player_name: Ecto.UUID.generate(),
-      player_position: %{x: 0, y: 0},
-      move_timestamp: timestamp()
+      player: %Player{name: Ecto.UUID.generate()},
+      move_timestamp: timestamp(),
+      update_timer: make_ref()
     }
 
-    {:ok, socket |> assign(data) |> broadcast_player_position()}
+    {:ok, socket |> assign(data) |> set_position_update_timer()}
+  end
+
+  @impl true
+  def terminate(reason, socket) do
+    broadcast_delete(socket)
+    :ok = PubSub.unsubscribe(Canvas.PubSub, @players_topic)
+
+    reason
   end
 
   @impl true
@@ -62,15 +73,33 @@ defmodule CanvasWeb.CanvasLive do
   @impl true
   def handle_info({:player_position, data}, socket) do
     socket =
-      if data.name == socket.assigns.player_name do
+      if data.name == socket.assigns.player.name do
         socket
       else
-        IO.puts("Player position: #{inspect(data)}")
+        player = Player.new(data)
 
         socket
-        |> assign(players: Map.put(socket.assigns.players, data.name, data))
-        |> push_event(@close_players_position_update_event, data)
+        |> assign(players: Map.put(socket.assigns.players, player.name, player))
+        |> push_player_position_update(player, broadcast: false)
       end
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:delete_player, data}, socket) do
+    socket =
+      socket
+      |> assign(players: Map.delete(socket.assigns.players, data.name))
+      |> push_event(@delete_player_event, data)
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:update_player_position, socket) do
+    socket =
+      socket
+      |> push_player_position_update(socket.assigns.player)
+      |> set_position_update_timer()
 
     {:noreply, socket}
   end
@@ -79,10 +108,13 @@ defmodule CanvasWeb.CanvasLive do
     now = timestamp()
 
     if now > socket.assigns.move_timestamp + @move_threshold do
+      Process.cancel_timer(socket.assigns.update_timer)
+
       key
       |> handle_move(socket)
       |> assign(move_timestamp: now)
-      |> broadcast_player_position()
+      |> push_player_position_update()
+      |> set_position_update_timer()
     else
       socket
     end
@@ -93,56 +125,57 @@ defmodule CanvasWeb.CanvasLive do
   end
 
   def handle_move(key, socket) when key in @move_up_keys do
-    old_position = socket.assigns.player_position
-    position = %{old_position | y: old_position.y - @move_step}
-
-    socket
-    |> assign(:player_position, position)
-    |> push_event(@position_update_event, position)
+    old_player = socket.assigns.player
+    player = %{old_player | y: old_player.y - @move_step}
+    assign(socket, :player, player)
   end
 
   def handle_move(key, socket) when key in @move_down_keys do
-    old_position = socket.assigns.player_position
-    position = %{old_position | y: old_position.y + @move_step}
-
-    socket
-    |> assign(:player_position, position)
-    |> push_event(@position_update_event, position)
+    old_player = socket.assigns.player
+    player = %{old_player | y: old_player.y + @move_step}
+    assign(socket, :player, player)
   end
 
   def handle_move(key, socket) when key in @move_left_keys do
-    old_position = socket.assigns.player_position
-    position = %{old_position | x: old_position.x - @move_step}
-
-    socket
-    |> assign(:player_position, position)
-    |> push_event(@position_update_event, position)
+    old_player = socket.assigns.player
+    player = %{old_player | x: old_player.x - @move_step}
+    assign(socket, :player, player)
   end
 
   def handle_move(key, socket) when key in @move_right_keys do
-    old_position = socket.assigns.player_position
-    position = %{old_position | x: old_position.x + @move_step}
-
-    socket
-    |> assign(:player_position, position)
-    |> push_event(@position_update_event, position)
+    old_player = socket.assigns.player
+    player = %{old_player | x: old_player.x + @move_step}
+    assign(socket, :player, player)
   end
 
   def timestamp do
     System.os_time(:millisecond)
   end
 
-  def broadcast_player_position(socket) do
-    assigns = socket.assigns
+  def push_player_position_update(socket) do
+    push_player_position_update(socket, socket.assigns.player)
+  end
 
-    data = %{
-      x: assigns.player_position.x,
-      y: assigns.player_position.y,
-      name: assigns.player_name
-    }
+  def push_player_position_update(socket, %Player{} = player, opts \\ []) do
+    position = Map.take(player, [:x, :y, :name])
 
-    :ok = PubSub.broadcast(Canvas.PubSub, @players_topic, {:player_position, data})
+    if Keyword.get(opts, :broadcast, true) do
+      :ok = PubSub.broadcast(Canvas.PubSub, @players_topic, {:player_position, position})
+    end
 
-    socket
+    push_event(socket, @position_update_event, position)
+  end
+
+  def broadcast_delete(socket) do
+    position = Map.take(socket.assigns.player, [:x, :y, :name])
+    :ok = PubSub.broadcast(Canvas.PubSub, @players_topic, {:delete_player, position})
+  end
+
+  def set_position_update_timer(socket) do
+    Process.cancel_timer(socket.assigns.update_timer)
+
+    assign(socket,
+      update_timer: Process.send_after(self(), :update_player_position, @update_interval)
+    )
   end
 end
