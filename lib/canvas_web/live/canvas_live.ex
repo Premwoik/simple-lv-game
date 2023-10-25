@@ -6,9 +6,10 @@ defmodule CanvasWeb.CanvasLive do
   alias Phoenix.PubSub
 
   alias Canvas.Player
+  alias Canvas.Board
 
   # pixels
-  @move_step 20
+  @move_step 32
   # milliseconds
   @move_threshold 50
   # milliseconds
@@ -31,30 +32,36 @@ defmodule CanvasWeb.CanvasLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.focus_wrap id="game">
-      <div
-        id="game-canvas"
-        phx-hook="Canvas"
-        phx-update="ignore"
-        phx-keydown="button-press"
-        phx-throttle="100"
-      />
-    </.focus_wrap>
+    <div
+      id="game-canvas"
+      class="w-full h-full"
+      phx-hook="Canvas"
+      phx-update="ignore"
+      phx-keydown="button-press"
+      phx-throttle="100"
+    />
     """
   end
 
   @impl true
   def mount(_params, _session, socket) do
     :ok = PubSub.subscribe(Canvas.PubSub, @players_topic)
+    {:ok, board} = Board.load_chunk("priv/static/board/chunk.tmj")
 
     data = %{
       players: %{},
-      player: %Player{name: Ecto.UUID.generate()},
+      player: %Player{name: Ecto.UUID.generate(), x: 16, y: 0},
       move_timestamp: timestamp(),
-      update_timer: make_ref()
+      update_timer: make_ref(),
+      board: board
     }
 
-    {:ok, socket |> assign(data) |> set_position_update_timer()}
+    {:ok,
+     socket
+     |> assign(data)
+     |> set_position_update_timer()
+     |> push_player_position_update(data.player, broadcast: false)
+     |> push_event("board", %{board: board})}
   end
 
   @impl true

@@ -19,7 +19,7 @@ config :canvas, Canvas.Repo,
 config :canvas, CanvasWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 4000],
+  http: [ip: {0, 0, 0, 0}, port: 4000],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
@@ -56,7 +56,7 @@ config :canvas, CanvasWeb.Endpoint,
 config :canvas, CanvasWeb.Endpoint,
   live_reload: [
     patterns: [
-      ~r"priv/static/.*(js|css|png|jpeg|jpg|gif|svg)$",
+      ~r"priv/static/.*(js|css|png|jpeg|jpg|gif|svg|tmj)$",
       ~r"priv/gettext/.*(po)$",
       ~r"lib/canvas_web/(controllers|live|components)/.*(ex|heex)$"
     ]
