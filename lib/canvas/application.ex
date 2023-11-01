@@ -7,7 +7,11 @@ defmodule Canvas.Application do
 
   @impl true
   def start(_type, _args) do
+    # Loag board to persistent storage
+    load_board()
+
     children = [
+      Canvas.MonsterSupervisor,
       # CanvasWeb.Telemetry,
       # Canvas.Repo,
       {DNSCluster, query: Application.get_env(:canvas, :dns_cluster_query) || :ignore},
@@ -32,5 +36,12 @@ defmodule Canvas.Application do
   def config_change(changed, _new, removed) do
     CanvasWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  alias Canvas.Board
+
+  def load_board do
+    {:ok, board} = Board.load_map("priv/static/board/chunk.tmj")
+    :persistent_term.put(:board, board)
   end
 end

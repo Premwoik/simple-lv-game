@@ -5,8 +5,10 @@ defmodule CanvasWeb.CanvasLive do
 
   alias Phoenix.PubSub
 
-  alias Canvas.Player
+  alias Canvas.Models.Player
   alias Canvas.Board
+  alias Canvas.Constants
+  alias Canvas.ObjectColisions
 
   # pixels
   @move_step 32
@@ -23,7 +25,8 @@ defmodule CanvasWeb.CanvasLive do
   @move_keys Enum.concat([@move_left_keys, @move_right_keys, @move_down_keys, @move_up_keys])
 
   # Topics
-  @players_topic "canvas:players"
+  @players_topic Constants.players_topic()
+  @monster_topic Constants.monsters_topic()
 
   # JS Events
   @position_update_event "update-player-position"
@@ -46,28 +49,28 @@ defmodule CanvasWeb.CanvasLive do
   @impl true
   def mount(_params, _session, socket) do
     :ok = PubSub.subscribe(Canvas.PubSub, @players_topic)
-    {:ok, board} = Board.load_chunk("priv/static/board/chunk.tmj")
+    :ok = PubSub.subscribe(Canvas.PubSub, @monster_topic)
 
     data = %{
+      player: %Player{name: Ecto.UUID.generate(), x: 1, y: 1, width: 30, height: 30},
       players: %{},
-      player: %Player{name: Ecto.UUID.generate(), x: 16, y: 0},
+      monsters: %{},
       move_timestamp: timestamp(),
-      update_timer: make_ref(),
-      board: board
+      update_timer: make_ref()
     }
 
     {:ok,
      socket
      |> assign(data)
      |> set_position_update_timer()
-     |> push_player_position_update(data.player, broadcast: false)
-     |> push_event("board", %{board: board})}
+     |> push_player_position_update(data.player, broadcast: false)}
   end
 
   @impl true
   def terminate(reason, socket) do
     broadcast_delete(socket)
     :ok = PubSub.unsubscribe(Canvas.PubSub, @players_topic)
+    :ok = PubSub.unsubscribe(Canvas.PubSub, @monster_topic)
 
     reason
   end
@@ -111,6 +114,13 @@ defmodule CanvasWeb.CanvasLive do
     {:noreply, socket}
   end
 
+  def handle_info({:monster_position, data}, socket) do
+    data = Map.take(data, [:x, :y, :name])
+    player = Player.new(data)
+    socket = push_player_position_update(socket, player, broadcast: false)
+    {:noreply, socket}
+  end
+
   def handle_button_press(key, socket) when key in @move_keys do
     now = timestamp()
 
@@ -119,6 +129,7 @@ defmodule CanvasWeb.CanvasLive do
 
       key
       |> handle_move(socket)
+      |> prevent_colisions(socket)
       |> assign(move_timestamp: now)
       |> push_player_position_update()
       |> set_position_update_timer()
@@ -129,6 +140,16 @@ defmodule CanvasWeb.CanvasLive do
 
   def handle_button_press(_key, socket) do
     socket
+  end
+
+  def prevent_colisions(new_socket, old_socket) do
+    %{obstacles: obstacles} = Board.get_board()
+
+    if ObjectColisions.collide?(new_socket.assigns.player, obstacles) do
+      old_socket
+    else
+      new_socket
+    end
   end
 
   def handle_move(key, socket) when key in @move_up_keys do
