@@ -1,4 +1,5 @@
 import { Application, Sprite, Container, Texture, Rectangle } from 'pixi.js'
+import { base64ToInt32Array } from './base64.js'
 
 const boardPath = '/board/chunk.tmj'
 const texturePath = '/textures/erick-etchebeur-transparent.webp'
@@ -11,35 +12,42 @@ const canvasHook = {
     this.el.focus()
 
     const texture = await Texture.fromURL(texturePath).then((texture) => { return texture })
-
-    const canvasCenter = { x: this.app.renderer.width / 2, y: this.app.renderer.height / 2 }
     const board = await loadBoard(boardPath)
     const players = {}
 
     const boardContainer = createContainer('board')
     this.app.stage.addChild(boardContainer)
 
+    const stepableContainer = createContainer('stepable')
+    this.app.stage.addChild(stepableContainer)
+
     const playersContainer = createContainer('players')
     this.app.stage.addChild(playersContainer)
+
+    const treesContainer2 = createContainer('trees2')
+    this.app.stage.addChild(treesContainer2)
 
     const treesContainer = createContainer('trees')
     this.app.stage.addChild(treesContainer)
 
-    renderBoard(boardContainer, texture, board.layers[0])
-    renderBoard(treesContainer, texture, board.layers[1])
+    const wallsContainer = createContainer('walls')
+    this.app.stage.addChild(wallsContainer)
+
+    renderLayer(boardContainer, texture, board.layers.find((l) => l.name === 'ground'))
+    renderLayer(stepableContainer, texture, board.layers.find((l) => l.name === 'stepable'))
+    renderLayer(treesContainer2, texture, board.layers.find((l) => l.name === 'flore2'))
+    renderLayer(treesContainer, texture, board.layers.find((l) => l.name === 'flore'))
+    renderLayer(wallsContainer, texture, board.layers.find((l) => l.name === 'walls'))
 
     this.handleEvent('update-player-position', (data) => {
       const sprite = players[data.name]
 
       if (sprite) {
-        sprite.x = canvasCenter.x + data.x
-        sprite.y = canvasCenter.y + data.y
+        sprite.x = data.x
+        sprite.y = data.y
       } else {
-        const sprite = Sprite.from('https://pixijs.com/assets/bunny.png')
-        sprite.x = canvasCenter.x + data.x
-        sprite.y = canvasCenter.y + data.y
-        players[data.name] = sprite
-        playersContainer.addChild(sprite)
+        const texture = 'https://pixijs.com/assets/bunny.png'
+        players[data.name] = drawSprite(playersContainer, texture, data)
       }
     })
 
@@ -63,42 +71,48 @@ const createContainer = (name) => {
   return container
 }
 
-const renderBoard = (container, texture, layer) => {
-  const decodedBinaryString = atob(layer.data)
-  const byteArray = new Uint8Array(decodedBinaryString.length)
-
-  for (let i = 0; i < decodedBinaryString.length; i++) {
-    byteArray[i] = decodedBinaryString.charCodeAt(i)
-  }
-
-  // 2. Convert the bytes into Int32 values
-  const int32Array = new Int32Array(byteArray.buffer)
+const renderLayer = (container, tileset, layer) => {
+  const boardInt32Array = base64ToInt32Array(layer.data)
   let index = 0
   for (let y = 0; y < 20; y++) {
     for (let x = 0; x < 25; x++) {
-      const position = int32Array[index]
-      if (position > 0) {
-        const cordX = x * 32
-        const cordY = y * 32
-        const ntexture = texture.clone()
-        ntexture.frame = textureFrame(position)
-
-        const sprite = Sprite.from(ntexture)
-        sprite.x = cordX
-        sprite.y = cordY
-        container.addChild(sprite)
-      }
+      const textureIndex = boardInt32Array[index]
+      drawTile(container, tileset, textureIndex, { x, y })
       index++
     }
   }
 }
 
-const textureFrame = (position) => {
+// (container, tileset, integer, context) => void
+const drawTile = (container, tileset, textureIndex, tileContext) => {
+  if (textureIndex > 0) {
+    const texture = getTextureFromTileset(tileset, textureIndex)
+    drawSprite(container, texture, tileContext)
+  }
+}
+
+// (container, texture, context) => sprite
+const drawSprite = (container, texture, { x, y }) => {
+  const sprite = Sprite.from(texture)
+  sprite.x = x * 32
+  sprite.y = y * 32
+  container.addChild(sprite)
+  return sprite
+}
+
+// (texture, integer) => texture
+const getTextureFromTileset = (tileset, position) => {
+  const texture = tileset.clone()
+  texture.frame = calculateTextureFrame(position)
+  return texture
+}
+
+// (integer) => shape
+const calculateTextureFrame = (position) => {
   const size = 32
   const width = 14
   const y = Math.floor(position / width)
   const x = position % width - 1
-  console.log(y, x)
   return new Rectangle(x * size, y * size, size, size)
 }
 
