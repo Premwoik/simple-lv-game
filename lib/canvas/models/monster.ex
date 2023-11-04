@@ -1,14 +1,15 @@
 defmodule Canvas.Models.Monster do
+  use GenStateMachine
   use TypedEctoSchema
 
-  alias Canvas.Board
   alias Canvas.Constants
-  alias Canvas.ObjectColisions
   alias Phoenix.PubSub
+  alias Canvas.Models.Monster.Move, as: MonsterMove
+  alias Canvas.MonstersMem
 
+  @monster_tick 200
   @monster_topic Constants.monsters_topic()
-
-  @behaviour GenServer
+  @players_topic Constants.players_topic()
 
   typed_embedded_schema do
     field :name, :string
@@ -16,44 +17,66 @@ defmodule Canvas.Models.Monster do
     field :y, :integer, default: 0
     field :width, :integer, default: 30
     field :height, :integer, default: 30
+    field :sprite, :string, default: "/textures/monster"
   end
 
   def start_link(init_arg) do
-    GenServer.start_link(__MODULE__, init_arg)
+    GenStateMachine.start_link(__MODULE__, init_arg)
   end
 
-  @impl GenServer
+  def get_monster(pid) do
+    GenStateMachine.call(pid, :get_monster)
+  end
+
+  @impl GenStateMachine
   def init(init_data) do
-    next_random_move()
-    {:ok, %{monster: struct(__MODULE__, init_data)}}
+    :ok = PubSub.subscribe(Canvas.PubSub, @players_topic)
+    :ok = PubSub.subscribe(Canvas.PubSub, @monster_topic)
+
+    data =
+      %{tick_timer: make_ref(), monster: struct(__MODULE__, init_data)}
+      |> next_monster_tick()
+
+    {:ok, :alive, data}
   end
 
-  @impl GenServer
-  def handle_info(:random_move, %{monster: monster} = state) do
-    %{tile_size: tile_size, width: width, height: height, obstacles: obstacles} =
-      Board.get_board()
+  @impl GenStateMachine
+  def terminate(reason, _state, _data) do
+    :ok = PubSub.unsubscribe(Canvas.PubSub, @players_topic)
+    :ok = PubSub.subscribe(Canvas.PubSub, @monster_topic)
+    reason
+  end
 
-    new_monster =
-      case :rand.uniform(4) do
-        1 -> Map.update!(monster, :y, &max(&1 - tile_size, 0))
-        2 -> Map.update!(monster, :y, &min(&1 + tile_size, height))
-        3 -> Map.update!(monster, :x, &max(&1 - tile_size, 0))
-        4 -> Map.update!(monster, :x, &min(&1 + tile_size, width))
-      end
+  @impl GenStateMachine
+  def handle_event({:call, pid}, :get_monster, _state, data) do
+    {:keep_state, data, [{:reply, pid, data.monster}]}
+  end
 
-    if ObjectColisions.collide?(new_monster, obstacles) do
-      # Illegal move, try again
-      send(self(), :random_move)
-      {:noreply, state}
-    else
+  def handle_event(:info, :tick, _state, data) do
+    {:keep_state, do_monster_move(data)}
+  end
+
+  def handle_event(:info, _msg, _state, data) do
+    {:keep_state, data}
+  end
+
+  def do_monster_move(%{monster: monster} = data) do
+    new_monster = monster |> MonsterMove.move(:random) |> Result.with_default(monster)
+
+    if [] == MonstersMem.lookup_monsters(new_monster) do
+      :ok = MonstersMem.update_monster(self(), new_monster)
       :ok = broadcast_monster_position(new_monster)
-      next_random_move()
-      {:noreply, %{state | monster: new_monster}}
+      %{data | monster: new_monster}
+    else
+      data
     end
+    |> next_monster_tick()
   end
 
-  def next_random_move do
-    Process.send_after(self(), :random_move, 1000)
+  def next_monster_tick(%{tick_timer: tick_timer} = data) do
+    Process.cancel_timer(tick_timer)
+    tick_timer = Process.send_after(self(), :tick, @monster_tick)
+    %{data | tick_timer: tick_timer}
   end
 
   def broadcast_monster_position(monster) do

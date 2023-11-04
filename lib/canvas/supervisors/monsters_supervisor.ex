@@ -1,10 +1,19 @@
-defmodule Canvas.MonsterSupervisor do
+defmodule Canvas.MonstersSupervisor do
   use DynamicSupervisor
 
   alias Canvas.Models.Monster
+  alias Canvas.MonstersMem
 
-  def get_monsters do
-    DynamicSupervisor.which_children(__MODULE__)
+  def stop do
+    DynamicSupervisor.stop(__MODULE__)
+    MonstersMem.clear()
+  end
+
+  def get_monsters(caller_pid) do
+    for {:undefined, pid, :worker, [Monster]} <- DynamicSupervisor.which_children(__MODULE__),
+        pid != caller_pid do
+      Monster.get_monster(pid)
+    end
   end
 
   def spawn_test_monsters(n \\ 1) do

@@ -11,7 +11,8 @@ defmodule Canvas.Application do
     load_board()
 
     children = [
-      Canvas.MonsterSupervisor,
+      Canvas.MonstersMem,
+      Canvas.MonstersSupervisor,
       # CanvasWeb.Telemetry,
       # Canvas.Repo,
       {DNSCluster, query: Application.get_env(:canvas, :dns_cluster_query) || :ignore},

@@ -52,7 +52,10 @@ defmodule Canvas.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:plug_cowboy, "~> 2.5"},
       {:nx, "~> 0.5"},
-      {:typed_ecto_schema, "~> 0.4.1", runtime: false}
+      {:typed_ecto_schema, "~> 0.4.1", runtime: false},
+      {:gen_state_machine, "~> 3.0"},
+      {:result, "~> 1.7"},
+      {:benchee, "~> 1.0", only: :dev}
     ]
   end
 
