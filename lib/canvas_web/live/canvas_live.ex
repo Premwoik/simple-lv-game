@@ -10,7 +10,7 @@ defmodule CanvasWeb.CanvasLive do
   alias Canvas.Board
   alias Canvas.Constants
   alias Canvas.ObjectColisions
-  alias Canvas.MonstersMem
+  alias Canvas.MonstersLookup
 
   # pixels
   @move_step 32
@@ -58,7 +58,7 @@ defmodule CanvasWeb.CanvasLive do
     if connected?(socket) do
       :ok = PubSub.subscribe(Canvas.PubSub, @players_topic)
       :ok = PubSub.subscribe(Canvas.PubSub, @monster_topic)
-      :ok = MonstersMem.update_monster(self(), data.player)
+      :ok = MonstersLookup.update_monster(self(), data.player)
     end
 
     {:ok, assign(socket, data)}
@@ -66,7 +66,7 @@ defmodule CanvasWeb.CanvasLive do
 
   @impl true
   def terminate(reason, socket) do
-    MonstersMem.clear_monster(self())
+    MonstersLookup.clear_monster(self())
     broadcast_delete(socket)
     :ok = PubSub.unsubscribe(Canvas.PubSub, @players_topic)
     :ok = PubSub.unsubscribe(Canvas.PubSub, @monster_topic)
@@ -81,7 +81,7 @@ defmodule CanvasWeb.CanvasLive do
 
   def handle_event("canvas-loaded", _params, socket) do
     socket =
-      MonstersMem.lookup_monsters(0, 0, 800, 600)
+      MonstersLookup.lookup_area(0, 0, 800, 600)
       |> Enum.reduce(socket, fn [_, x, y, _, _, details], acc_socket ->
         details = Map.merge(details, %{x: x, y: y})
         push_character_update(acc_socket, details)
@@ -135,8 +135,8 @@ defmodule CanvasWeb.CanvasLive do
     player = new_socket.assigns.player
 
     with false <- ObjectColisions.collide?(player, obstacles),
-         [] <- MonstersMem.lookup_monsters(player) do
-      :ok = MonstersMem.update_monster(self(), player)
+         [] <- MonstersLookup.lookup_colliding_monsters(player) do
+      :ok = MonstersLookup.update_monster(self(), player)
       new_socket
     else
       _ ->

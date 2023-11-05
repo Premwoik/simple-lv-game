@@ -1,8 +1,8 @@
-defmodule Canvas.Models.Monster.MoveRandom do
-  alias Canvas.Models.Monster.Move, as: MonsterMove
+defmodule Canvas.Monster.MoveRandom do
+  alias Canvas.Monster.Move, as: MonsterMove
   alias Canvas.ObjectColisions
   alias Canvas.Board
-  alias Canvas.MonstersMem
+  alias Canvas.MonstersLookup
 
   @behaviour MonsterMove
 
@@ -28,7 +28,7 @@ defmodule Canvas.Models.Monster.MoveRandom do
       end
 
     with false <- ObjectColisions.collide?(new_monster, obstacles),
-         [] <- MonstersMem.lookup_monsters(new_monster) do
+         [] <- MonstersLookup.lookup_colliding_monsters(new_monster) do
       {:ok, new_monster}
     else
       _ ->

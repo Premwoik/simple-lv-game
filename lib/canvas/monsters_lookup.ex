@@ -1,4 +1,4 @@
-defmodule Canvas.MonstersMem do
+defmodule Canvas.MonstersLookup do
   use GenServer
 
   @ets :monsters_pos_lookup
@@ -20,12 +20,12 @@ defmodule Canvas.MonstersMem do
     GenServer.call(__MODULE__, :clear)
   end
 
-  @spec lookup_monsters(monster()) :: [row()]
-  def lookup_monsters(monster) do
-    lookup_monsters(monster.x, monster.y, monster.width, monster.height)
+  @spec lookup_colliding_monsters(monster()) :: [row()]
+  def lookup_colliding_monsters(monster) do
+    lookup_area(monster.x, monster.y, monster.width, monster.height)
   end
 
-  def lookup_monsters(x, y, width, height) do
+  def lookup_area(x, y, width, height) do
     # Check if objects collide
 
     head = {:"$1", :"$2", :"$3", :"$4", :"$5", :"$6"}
@@ -88,4 +88,3 @@ defmodule Canvas.MonstersMem do
     {:reply, :ok, state}
   end
 end
-

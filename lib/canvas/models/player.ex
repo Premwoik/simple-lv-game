@@ -13,7 +13,7 @@ defmodule Canvas.Models.Player do
 
   def changeset(player, attrs) do
     player
-    |> cast(attrs, [:name, :x, :y])
+    |> cast(attrs, [:id, :name, :x, :y])
     |> validate_required([:name, :x, :y])
   end
 
