@@ -16,11 +16,8 @@ defmodule Canvas.Application do
       # CanvasWeb.Telemetry,
       # Canvas.Repo,
       {DNSCluster, query: Application.get_env(:canvas, :dns_cluster_query) || :ignore},
+      # Start PubSub
       {Phoenix.PubSub, name: Canvas.PubSub},
-      # Start the Finch HTTP client for sending emails
-      {Finch, name: Canvas.Finch},
-      # Start a worker by calling: Canvas.Worker.start_link(arg)
-      # {Canvas.Worker, arg},
       # Start to serve requests, typically the last entry
       CanvasWeb.Endpoint
     ]
