@@ -23,6 +23,10 @@ defmodule Canvas.MonsterProcess do
     GenStateMachine.start_link(__MODULE__, init_arg)
   end
 
+  def stop(pid) do
+    GenStateMachine.stop(pid)
+  end
+
   def get_monster(pid) do
     GenStateMachine.call(pid, :get_monster)
   end
@@ -38,6 +42,7 @@ defmodule Canvas.MonsterProcess do
 
   @impl GenStateMachine
   def terminate(reason, _state, data) do
+    MonstersLookup.clear_monster(self())
     :ok = broadcast_monster_delete(data.monster)
     reason
   end
