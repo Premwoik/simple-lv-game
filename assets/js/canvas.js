@@ -6,6 +6,7 @@ const texturePath = '/textures/erick-etchebeur-transparent.webp'
 
 const canvasHook = {
   app: new Application({ background: '#1099bb', antialias: true }),
+  playersContainer: null,
   async mounted () {
     this.el.appendChild(this.app.view)
     this.el.tabIndex = -1
@@ -15,6 +16,8 @@ const canvasHook = {
     const board = await loadBoard(boardPath)
     const players = {}
 
+    setTimeout(() => { this.pushEvent('canvas-loaded', {}) })
+
     const boardContainer = createContainer('board')
     this.app.stage.addChild(boardContainer)
 
@@ -23,6 +26,7 @@ const canvasHook = {
 
     const playersContainer = createContainer('players')
     this.app.stage.addChild(playersContainer)
+    this.playersContainer = playersContainer
 
     const treesContainer2 = createContainer('trees2')
     this.app.stage.addChild(treesContainer2)
@@ -39,25 +43,32 @@ const canvasHook = {
     renderLayer(treesContainer, texture, board.layers.find((l) => l.name === 'flore'))
     renderLayer(wallsContainer, texture, board.layers.find((l) => l.name === 'walls'))
 
-    this.handleEvent('update-player-position', (data) => {
-      const sprite = players[data.name]
+    this.handleEvent('update-character', (data) => {
+      const sprite = players[data.id]
 
       if (sprite) {
         sprite.x = data.x
         sprite.y = data.y
       } else {
-        const texture = 'https://pixijs.com/assets/bunny.png'
-        players[data.name] = drawSprite(playersContainer, texture, data)
+        const sprite = Sprite.from(getMonsterTexture(data.texture))
+        sprite.x = data.x
+        sprite.y = data.y
+        playersContainer.addChild(sprite)
+        players[data.id] = sprite
       }
     })
 
-    this.handleEvent('delete-player', (data) => {
-      const sprite = players[data.name]
+    this.handleEvent('delete-character', (data) => {
+      const sprite = players[data.id]
       if (sprite) {
         playersContainer.removeChild(sprite)
-        delete players[data.name]
+        delete players[data.id]
       }
     })
+  },
+  reconnected () {
+    this.playersContainer.removeChildren()
+    setTimeout(() => { this.pushEvent('canvas-loaded', {}) })
   }
 }
 
@@ -87,17 +98,11 @@ const renderLayer = (container, tileset, layer) => {
 const drawTile = (container, tileset, textureIndex, tileContext) => {
   if (textureIndex > 0) {
     const texture = getTextureFromTileset(tileset, textureIndex)
-    drawSprite(container, texture, tileContext)
+    const sprite = Sprite.from(texture)
+    sprite.x = tileContext.x * 32
+    sprite.y = tileContext.y * 32
+    container.addChild(sprite)
   }
-}
-
-// (container, texture, context) => sprite
-const drawSprite = (container, texture, { x, y }) => {
-  const sprite = Sprite.from(texture)
-  sprite.x = x * 32
-  sprite.y = y * 32
-  container.addChild(sprite)
-  return sprite
 }
 
 // (texture, integer) => texture
@@ -114,6 +119,12 @@ const calculateTextureFrame = (position) => {
   const y = Math.floor(position / width)
   const x = position % width - 1
   return new Rectangle(x * size, y * size, size, size)
+}
+
+const getMonsterTexture = (textureId) => {
+  const defaultTexture = 'https://pixijs.com/assets/bunny.png'
+  const map = { 1: '/textures/monster.png' }
+  return map[textureId] ?? defaultTexture
 }
 
 export default { Hook: canvasHook }

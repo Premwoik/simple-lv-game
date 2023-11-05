@@ -4,18 +4,18 @@ defmodule CanvasWeb.CanvasLive do
   require Logger
 
   alias Phoenix.PubSub
+  alias Phoenix.LiveView.Socket
 
   alias Canvas.Models.Player
   alias Canvas.Board
   alias Canvas.Constants
   alias Canvas.ObjectColisions
+  alias Canvas.MonstersMem
 
   # pixels
   @move_step 32
   # milliseconds
   @move_threshold 50
-  # milliseconds
-  @update_interval 500
 
   # Move keys
   @move_left_keys ~w(a ArrowLeft)
@@ -29,8 +29,8 @@ defmodule CanvasWeb.CanvasLive do
   @monster_topic Constants.monsters_topic()
 
   # JS Events
-  @position_update_event "update-player-position"
-  @delete_player_event "delete-player"
+  @update_character_event "update-character"
+  @delete_character_event "delete-character"
 
   @impl true
   def render(assigns) do
@@ -48,26 +48,25 @@ defmodule CanvasWeb.CanvasLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    :ok = PubSub.subscribe(Canvas.PubSub, @players_topic)
-    :ok = PubSub.subscribe(Canvas.PubSub, @monster_topic)
+    id = System.unique_integer([:positive, :monotonic])
 
     data = %{
-      player: %Player{name: Ecto.UUID.generate(), x: 1, y: 1, width: 30, height: 30},
-      players: %{},
-      monsters: %{},
-      move_timestamp: timestamp(),
-      update_timer: make_ref()
+      player: %Player{id: id, name: "Player #{id}", x: 0, y: 0, width: 30, height: 30},
+      move_timestamp: timestamp()
     }
 
-    {:ok,
-     socket
-     |> assign(data)
-     |> set_position_update_timer()
-     |> push_player_position_update(data.player, broadcast: false)}
+    if connected?(socket) do
+      :ok = PubSub.subscribe(Canvas.PubSub, @players_topic)
+      :ok = PubSub.subscribe(Canvas.PubSub, @monster_topic)
+      :ok = MonstersMem.update_monster(self(), data.player)
+    end
+
+    {:ok, assign(socket, data)}
   end
 
   @impl true
   def terminate(reason, socket) do
+    MonstersMem.clear_monster(self())
     broadcast_delete(socket)
     :ok = PubSub.unsubscribe(Canvas.PubSub, @players_topic)
     :ok = PubSub.unsubscribe(Canvas.PubSub, @monster_topic)
@@ -80,130 +79,119 @@ defmodule CanvasWeb.CanvasLive do
     {:noreply, handle_button_press(key, socket)}
   end
 
+  def handle_event("canvas-loaded", _params, socket) do
+    socket =
+      MonstersMem.lookup_monsters(0, 0, 800, 600)
+      |> Enum.reduce(socket, fn [_, x, y, _, _, details], acc_socket ->
+        details = Map.merge(details, %{x: x, y: y})
+        push_character_update(acc_socket, details)
+      end)
+
+    {:noreply, socket}
+  end
+
   @impl true
-  def handle_info({:player_position, data}, socket) do
-    socket =
-      if data.name == socket.assigns.player.name do
-        socket
-      else
-        player = Player.new(data)
-
-        socket
-        |> assign(players: Map.put(socket.assigns.players, player.name, player))
-        |> push_player_position_update(player, broadcast: false)
-      end
-
+  def handle_info({:update_player, player}, socket) do
+    socket = push_character_update(socket, player)
     {:noreply, socket}
   end
 
-  def handle_info({:delete_player, data}, socket) do
-    socket =
-      socket
-      |> assign(players: Map.delete(socket.assigns.players, data.name))
-      |> push_event(@delete_player_event, data)
-
+  def handle_info({:delete_player, player_id}, socket) do
+    socket = push_event(socket, @delete_character_event, %{id: player_id})
     {:noreply, socket}
   end
 
-  def handle_info(:update_player_position, socket) do
-    socket =
-      socket
-      |> push_player_position_update(socket.assigns.player)
-      |> set_position_update_timer()
-
+  def handle_info({:update_monster, monster}, socket) do
+    socket = push_character_update(socket, monster)
     {:noreply, socket}
   end
 
-  def handle_info({:monster_position, data}, socket) do
-    data = Map.take(data, [:x, :y, :name])
-    player = Player.new(data)
-    socket = push_player_position_update(socket, player, broadcast: false)
+  def handle_info({:delete_monster, monster_id}, socket) do
+    socket = push_event(socket, @delete_character_event, %{id: monster_id})
     {:noreply, socket}
   end
 
-  def handle_button_press(key, socket) when key in @move_keys do
+  defp handle_button_press(key, socket) when key in @move_keys do
     now = timestamp()
 
     if now > socket.assigns.move_timestamp + @move_threshold do
-      Process.cancel_timer(socket.assigns.update_timer)
-
       key
       |> handle_move(socket)
-      |> prevent_colisions(socket)
+      |> handle_colisions(socket)
       |> assign(move_timestamp: now)
-      |> push_player_position_update()
-      |> set_position_update_timer()
+      |> push_character_update()
+      |> broadcast_self_update()
     else
       socket
     end
   end
 
-  def handle_button_press(_key, socket) do
+  defp handle_button_press(_key, socket) do
     socket
   end
 
-  def prevent_colisions(new_socket, old_socket) do
+  defp handle_colisions(new_socket, old_socket) do
     %{obstacles: obstacles} = Board.get_board()
+    player = new_socket.assigns.player
 
-    if ObjectColisions.collide?(new_socket.assigns.player, obstacles) do
-      old_socket
-    else
+    with false <- ObjectColisions.collide?(player, obstacles),
+         [] <- MonstersMem.lookup_monsters(player) do
+      :ok = MonstersMem.update_monster(self(), player)
       new_socket
+    else
+      _ ->
+        old_socket
     end
   end
 
-  def handle_move(key, socket) when key in @move_up_keys do
+  defp handle_move(key, socket) when key in @move_up_keys do
     old_player = socket.assigns.player
     player = %{old_player | y: old_player.y - @move_step}
     assign(socket, :player, player)
   end
 
-  def handle_move(key, socket) when key in @move_down_keys do
+  defp handle_move(key, socket) when key in @move_down_keys do
     old_player = socket.assigns.player
     player = %{old_player | y: old_player.y + @move_step}
     assign(socket, :player, player)
   end
 
-  def handle_move(key, socket) when key in @move_left_keys do
+  defp handle_move(key, socket) when key in @move_left_keys do
     old_player = socket.assigns.player
     player = %{old_player | x: old_player.x - @move_step}
     assign(socket, :player, player)
   end
 
-  def handle_move(key, socket) when key in @move_right_keys do
+  defp handle_move(key, socket) when key in @move_right_keys do
     old_player = socket.assigns.player
     player = %{old_player | x: old_player.x + @move_step}
     assign(socket, :player, player)
   end
 
-  def timestamp do
+  defp timestamp do
     System.os_time(:millisecond)
   end
 
-  def push_player_position_update(socket) do
-    push_player_position_update(socket, socket.assigns.player)
+  defp push_character_update(socket) do
+    push_character_update(socket, socket.assigns.player)
   end
 
-  def push_player_position_update(socket, %Player{} = player, opts \\ []) do
-    position = Map.take(player, [:x, :y, :name])
-
-    if Keyword.get(opts, :broadcast, true) do
-      :ok = PubSub.broadcast(Canvas.PubSub, @players_topic, {:player_position, position})
-    end
-
-    push_event(socket, @position_update_event, position)
+  defp push_character_update(socket, character) do
+    character = Map.take(character, [:id, :x, :y, :texture])
+    push_event(socket, @update_character_event, character)
   end
 
-  def broadcast_delete(socket) do
-    position = Map.take(socket.assigns.player, [:x, :y, :name])
-    :ok = PubSub.broadcast(Canvas.PubSub, @players_topic, {:delete_player, position})
+  defp broadcast_self_update(%Socket{} = socket) do
+    :ok = broadcast_self_update(socket.assigns.player)
+    socket
   end
 
-  def set_position_update_timer(socket) do
-    Process.cancel_timer(socket.assigns.update_timer)
+  defp broadcast_self_update(player) do
+    :ok = PubSub.broadcast_from(Canvas.PubSub, self(), @players_topic, {:update_player, player})
+  end
 
-    assign(socket,
-      update_timer: Process.send_after(self(), :update_player_position, @update_interval)
-    )
+  defp broadcast_delete(socket) do
+    player_id = socket.assigns.player.id
+    :ok = PubSub.broadcast(Canvas.PubSub, @players_topic, {:delete_player, player_id})
   end
 end

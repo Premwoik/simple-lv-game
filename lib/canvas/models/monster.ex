@@ -7,9 +7,8 @@ defmodule Canvas.Models.Monster do
   alias Canvas.Models.Monster.Move, as: MonsterMove
   alias Canvas.MonstersMem
 
-  @monster_tick 200
+  @monster_tick 1000
   @monster_topic Constants.monsters_topic()
-  @players_topic Constants.players_topic()
 
   typed_embedded_schema do
     field :name, :string
@@ -17,7 +16,7 @@ defmodule Canvas.Models.Monster do
     field :y, :integer, default: 0
     field :width, :integer, default: 30
     field :height, :integer, default: 30
-    field :sprite, :string, default: "/textures/monster"
+    field :texture, :integer, default: 1
   end
 
   def start_link(init_arg) do
@@ -30,9 +29,6 @@ defmodule Canvas.Models.Monster do
 
   @impl GenStateMachine
   def init(init_data) do
-    :ok = PubSub.subscribe(Canvas.PubSub, @players_topic)
-    :ok = PubSub.subscribe(Canvas.PubSub, @monster_topic)
-
     data =
       %{tick_timer: make_ref(), monster: struct(__MODULE__, init_data)}
       |> next_monster_tick()
@@ -41,9 +37,8 @@ defmodule Canvas.Models.Monster do
   end
 
   @impl GenStateMachine
-  def terminate(reason, _state, _data) do
-    :ok = PubSub.unsubscribe(Canvas.PubSub, @players_topic)
-    :ok = PubSub.subscribe(Canvas.PubSub, @monster_topic)
+  def terminate(reason, _state, data) do
+    :ok = broadcast_monster_delete(data.monster)
     reason
   end
 
@@ -61,14 +56,14 @@ defmodule Canvas.Models.Monster do
   end
 
   def do_monster_move(%{monster: monster} = data) do
-    new_monster = monster |> MonsterMove.move(:random) |> Result.with_default(monster)
+    case MonsterMove.move(monster, :random) do
+      {:ok, new_monster} ->
+        :ok = MonstersMem.update_monster(self(), new_monster)
+        :ok = broadcast_monster_update(new_monster)
+        %{data | monster: new_monster}
 
-    if [] == MonstersMem.lookup_monsters(new_monster) do
-      :ok = MonstersMem.update_monster(self(), new_monster)
-      :ok = broadcast_monster_position(new_monster)
-      %{data | monster: new_monster}
-    else
-      data
+      {:error, :no_legal_moves} ->
+        data
     end
     |> next_monster_tick()
   end
@@ -79,7 +74,11 @@ defmodule Canvas.Models.Monster do
     %{data | tick_timer: tick_timer}
   end
 
-  def broadcast_monster_position(monster) do
-    :ok = PubSub.broadcast(Canvas.PubSub, @monster_topic, {:monster_position, monster})
+  def broadcast_monster_update(monster) do
+    :ok = PubSub.broadcast(Canvas.PubSub, @monster_topic, {:update_monster, monster})
+  end
+
+  def broadcast_monster_delete(monster) do
+    :ok = PubSub.broadcast(Canvas.PubSub, @monster_topic, {:delete_monster, monster.id})
   end
 end

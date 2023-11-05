@@ -4,7 +4,7 @@ defmodule Canvas.ObjectColisions do
   end
 
   def collide?(player, object) do
-    player.x <= object["x"] + object["width"] && player.x + player.width >= object["x"] &&
-      player.y <= object["y"] + object["height"] && player.y + player.height >= object["y"]
+    player.x < object["x"] + object["width"] && player.x + player.width > object["x"] &&
+      player.y < object["y"] + object["height"] && player.y + player.height > object["y"]
   end
 end

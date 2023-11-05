@@ -2,6 +2,7 @@ defmodule Canvas.Models.Monster.MoveRandom do
   alias Canvas.Models.Monster.Move, as: MonsterMove
   alias Canvas.ObjectColisions
   alias Canvas.Board
+  alias Canvas.MonstersMem
 
   @behaviour MonsterMove
 
@@ -26,10 +27,12 @@ defmodule Canvas.Models.Monster.MoveRandom do
         :right -> Map.update!(monster, :x, &min(&1 + tile_size, width))
       end
 
-    if ObjectColisions.collide?(new_monster, obstacles) do
-      random_legal_move(monster, board, List.delete(legal_moves, move))
-    else
+    with false <- ObjectColisions.collide?(new_monster, obstacles),
+         [] <- MonstersMem.lookup_monsters(new_monster) do
       {:ok, new_monster}
+    else
+      _ ->
+        random_legal_move(monster, board, List.delete(legal_moves, move))
     end
   end
 end

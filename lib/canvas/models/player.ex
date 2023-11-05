@@ -7,8 +7,8 @@ defmodule Canvas.Models.Player do
     field :name, :string
     field :x, :integer, default: 0
     field :y, :integer, default: 0
-    field :width, :integer, default: 32
-    field :height, :integer, default: 32
+    field :width, :integer, default: 30
+    field :height, :integer, default: 30
   end
 
   def changeset(player, attrs) do

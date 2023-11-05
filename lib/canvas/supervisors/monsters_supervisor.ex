@@ -17,8 +17,9 @@ defmodule Canvas.MonstersSupervisor do
   end
 
   def spawn_test_monsters(n \\ 1) do
-    for i <- 1..n do
-      spawn_monster(%{name: "Test Monster #{i}"})
+    for _ <- 1..n do
+      id = System.unique_integer([:positive, :monotonic])
+      spawn_monster(%{id: id, name: "Test Monster #{id}"})
     end
   end
 
