@@ -51,8 +51,17 @@ const canvasHook = {
         sprite.y = data.y
       } else {
         const sprite = Sprite.from(getMonsterTexture(data.texture))
+        sprite.eventMode = 'static'
+        sprite.cursor = 'pointer'
+        sprite.on('pointerdown', () => { this.pushEvent('click-character', { id: data.id }) })
         sprite.x = data.x
         sprite.y = data.y
+        console.log(data)
+        const graphics = new Graphics()
+        graphics.beginFill(0xFFFF00)
+        graphics.drawRect(0, -5, 32, 5)
+        sprite.addChild(graphics)
+
         playersContainer.addChild(sprite)
         players[data.id] = sprite
       }

@@ -42,7 +42,7 @@ defmodule Canvas.MonsterProcess do
 
   @impl GenStateMachine
   def terminate(reason, _state, data) do
-    MonstersLookup.clear_monster(self())
+    MonstersLookup.clear_monster(data.monster.id)
     :ok = broadcast_monster_delete(data.monster)
     reason
   end

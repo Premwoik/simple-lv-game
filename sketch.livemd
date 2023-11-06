@@ -1,0 +1,21 @@
+# Canvas game notebook
+
+## Section
+
+```elixir
+alias Canvas.MonsterSupervisor
+alias Canvas.Models.Monster
+alias Canvas.MonstersLookup
+```
+
+```elixir
+MonsterSupervisor.kill_monsters()
+```
+
+```elixir
+MonsterSupervisor.spawn_test_monsters(20)
+```
+
+```elixir
+MonstersLookup.lookup_area(0, 0, 800, 600)
+```

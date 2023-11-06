@@ -11,6 +11,8 @@ defmodule CanvasWeb.CanvasLive do
   alias Canvas.Constants
   alias Canvas.ObjectColisions
   alias Canvas.MonstersLookup
+  alias Canvas.MonsterProcess
+  alias Canvas.MonsterSupervisor
 
   # pixels
   @move_step 32
@@ -35,6 +37,7 @@ defmodule CanvasWeb.CanvasLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <.toolbar />
     <div
       id="game-canvas"
       class="w-full h-full"
@@ -43,6 +46,20 @@ defmodule CanvasWeb.CanvasLive do
       phx-keydown="button-press"
       phx-throttle="100"
     />
+    """
+  end
+
+  def toolbar(assigns) do
+    ~H"""
+    <div class="py-2">
+      <button
+        type="button"
+        class="bg-blue-600 border-blue-700 rounded-md py-2 px-4 text-sm text-white font-bold hover:bg-blue-700"
+        phx-click="spawn-test-monsters"
+      >
+        Spawn 10 monsters
+      </button>
+    </div>
     """
   end
 
@@ -66,7 +83,7 @@ defmodule CanvasWeb.CanvasLive do
 
   @impl true
   def terminate(reason, socket) do
-    MonstersLookup.clear_monster(self())
+    MonstersLookup.clear_monster(socket.assigns.player.id)
     broadcast_delete(socket)
     :ok = PubSub.unsubscribe(Canvas.PubSub, @players_topic)
     :ok = PubSub.unsubscribe(Canvas.PubSub, @monster_topic)
@@ -87,6 +104,20 @@ defmodule CanvasWeb.CanvasLive do
         push_character_update(acc_socket, details)
       end)
 
+    {:noreply, socket}
+  end
+
+  def handle_event("click-character", %{"id" => id}, socket) do
+    with false <- id == socket.assigns.player.id,
+         [{_, _, _, _, _, %{pid: pid}}] <- MonstersLookup.lookup(id) do
+      MonsterProcess.stop(pid)
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("spawn-test-monsters", _params, socket) do
+    MonsterSupervisor.spawn_test_monsters(10)
     {:noreply, socket}
   end
 
@@ -177,7 +208,7 @@ defmodule CanvasWeb.CanvasLive do
   end
 
   defp push_character_update(socket, character) do
-    character = Map.take(character, [:id, :x, :y, :texture])
+    character = Map.take(character, [:id, :x, :y, :texture, :name])
     push_event(socket, @update_character_event, character)
   end
 

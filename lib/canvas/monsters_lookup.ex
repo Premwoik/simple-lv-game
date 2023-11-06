@@ -20,6 +20,10 @@ defmodule Canvas.MonstersLookup do
     GenServer.call(__MODULE__, :clear)
   end
 
+  def lookup(id) do
+    :ets.lookup(@ets, id)
+  end
+
   @spec lookup_colliding_monsters(monster()) :: [row()]
   def lookup_colliding_monsters(monster) do
     lookup_area(monster.x, monster.y, monster.width, monster.height)
@@ -47,9 +51,9 @@ defmodule Canvas.MonstersLookup do
     GenServer.cast(__MODULE__, {:update_monster, pid, monster})
   end
 
-  @spec clear_monster(pid()) :: :ok
-  def clear_monster(pid) do
-    GenServer.cast(__MODULE__, {:clear_monster, pid})
+  @spec clear_monster(integer()) :: :ok
+  def clear_monster(id) do
+    GenServer.cast(__MODULE__, {:clear_monster, id})
   end
 
   def start_link(opts) do
@@ -71,14 +75,14 @@ defmodule Canvas.MonstersLookup do
   end
 
   @impl GenServer
-  def handle_cast({:update_monster, pid, monster}, state) do
-    details = Map.take(monster, [:id, :name, :texture])
-    :ets.insert(@ets, {pid, monster.x, monster.y, monster.width, monster.height, details})
+  def handle_cast({:update_monster, pid, %{id: id} = monster}, state) do
+    details = monster |> Map.take([:id, :name, :texture]) |> Map.put(:pid, pid)
+    :ets.insert(@ets, {id, monster.x, monster.y, monster.width, monster.height, details})
     {:noreply, state}
   end
 
-  def handle_cast({:clear_monster, pid}, state) do
-    true = :ets.delete(@ets, pid)
+  def handle_cast({:clear_monster, id}, state) do
+    true = :ets.delete(@ets, id)
     {:noreply, state}
   end
 
