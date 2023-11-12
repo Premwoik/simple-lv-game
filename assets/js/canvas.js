@@ -1,11 +1,11 @@
-import { Application, Sprite, Container, Texture, Rectangle } from 'pixi.js'
+import { Application, Sprite, Container, Texture, Rectangle, Graphics, Text, TextStyle } from 'pixi.js'
 import { base64ToInt32Array } from './base64.js'
 
 const boardPath = '/board/chunk.tmj'
 const texturePath = '/textures/erick-etchebeur-transparent.webp'
 
 const canvasHook = {
-  app: new Application({ background: '#1099bb', antialias: true }),
+  app: new Application({ antialias: true, height: 640, width: 800, resolution: 1.5 }),
   playersContainer: null,
   async mounted () {
     this.el.appendChild(this.app.view)
@@ -47,20 +47,38 @@ const canvasHook = {
       const sprite = players[data.id]
 
       if (sprite) {
-        sprite.x = data.x
-        sprite.y = data.y
+        sprite.x = data.x + 4
+        sprite.y = data.y - 16
       } else {
         const sprite = Sprite.from(getMonsterTexture(data.texture))
         sprite.eventMode = 'static'
         sprite.cursor = 'pointer'
         sprite.on('pointerdown', () => { this.pushEvent('click-character', { id: data.id }) })
-        sprite.x = data.x
-        sprite.y = data.y
+        sprite.x = data.x + 4
+        sprite.y = data.y - 16
         console.log(data)
         const graphics = new Graphics()
-        graphics.beginFill(0xFFFF00)
-        graphics.drawRect(0, -5, 32, 5)
-        sprite.addChild(graphics)
+        graphics.beginFill(0x009E60)
+        graphics.drawRect(-2, -5, 30, 4)
+        graphics.lineStyle(5, 0x000000)
+
+        const container = new Container()
+
+        const style = new TextStyle({
+          fill: '#ffffff',
+          fontSize: 10,
+          letterSpacing: 0,
+          lineJoin: 'round',
+          strokeThickness: 2,
+          align: 'left'
+
+        })
+        const text = new Text(data.name, style)
+        text.x = -(~~(data.name.length / 2) * 2)
+        text.y = -20
+        container.addChild(graphics)
+        container.addChild(text)
+        sprite.addChild(container)
 
         playersContainer.addChild(sprite)
         players[data.id] = sprite
