@@ -1,8 +1,16 @@
 defmodule Canvas.Monster.Move do
   alias Cavnas.Monster
   alias Canvas.Monster.MoveRandom
-  @callback(move(Monster.t()) :: {:ok, Monster.t()}, {:error, :no_legal_moves})
+  alias Canvas.Monster.MoveTarget
+  alias Canvas.Monster.MoveFollow
 
-  def move(monster, strategy)
-  def move(monster, :random), do: MoveRandom.move(monster)
+  @callback(
+    move(Monster.t(), map()) :: {:ok, Monster.t()},
+    {:error, :no_legal_moves | :on_target}
+  )
+
+  def move(monster, details \\ %{}, strategy)
+  def move(monster, details, :random), do: MoveRandom.move(monster, details)
+  def move(monster, details, :target), do: MoveTarget.move(monster, details)
+  def move(monster, details, :follow), do: MoveFollow.move(monster, details)
 end

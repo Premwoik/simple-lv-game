@@ -13,14 +13,27 @@ defmodule Canvas.MonsterSupervisor do
   def spawn_test_monsters(n \\ 1) do
     for _ <- 1..n do
       id = System.unique_integer([:positive, :monotonic])
-      spawn_monster(%{id: id, name: "Test Monster #{id}"})
+
+      spawn_monster(
+        %{id: id, name: "Test Monster #{id}", x: 32, y: 32},
+        %{move_strategy: :target, target: %{x: 672, y: 256}}
+      )
     end
   end
 
-  def spawn_monster(opts) do
+  def spawn_test_monster_following_player(player_id) do
+    id = System.unique_integer([:positive, :monotonic])
+
+    spawn_monster(
+      %{id: id, name: "Test Monster #{id}", x: 32, y: 32},
+      %{move_strategy: :follow, target: player_id}
+    )
+  end
+
+  def spawn_monster(monster_opts, opts) do
     DynamicSupervisor.start_child(__MODULE__, %{
       id: MonsterProcess,
-      start: {MonsterProcess, :start_link, [opts]},
+      start: {MonsterProcess, :start_link, [%{monster: monster_opts, opts: opts}]},
       restart: :temporary
     })
   end

@@ -40,7 +40,7 @@ defmodule CanvasWeb.CanvasLive do
     <.toolbar />
     <div
       id="game-canvas"
-      class="w-full h-full"
+      class=""
       phx-hook="Canvas"
       phx-update="ignore"
       phx-keydown="button-press"
@@ -52,15 +52,27 @@ defmodule CanvasWeb.CanvasLive do
   def toolbar(assigns) do
     ~H"""
     <div class="py-2">
-      <button
-        type="button"
-        class="bg-blue-600 border-blue-700 rounded-md py-2 px-4 text-sm text-white font-bold hover:bg-blue-700"
-        phx-click="spawn-test-monsters"
-      >
+      <button type="button" class={btn_class()} phx-click="spawn-test-monsters">
         Spawn 10 monsters
+      </button>
+      <button type="button" class={btn_class()} phx-click="spawn-test-monster">
+        Spawn monster
+      </button>
+      <button type="button" class={btn_class()} phx-click="spawn-following-monster">
+        Spawn following monster
+      </button>
+      <button type="button" class={btn_class()} phx-click="kill-monsters">
+        Kill monsters
+      </button>
+      <button type="button" class={btn_class()} phx-click="reset-player">
+        Reset player
       </button>
     </div>
     """
+  end
+
+  defp btn_class do
+    "bg-blue-600 border-blue-700 rounded-md py-2 px-4 text-sm text-white font-bold hover:bg-blue-700"
   end
 
   @impl true
@@ -68,7 +80,7 @@ defmodule CanvasWeb.CanvasLive do
     id = System.unique_integer([:positive, :monotonic])
 
     data = %{
-      player: %Player{id: id, name: "Player #{id}", x: 0, y: 0, width: 30, height: 30},
+      player: %Player{id: id, name: "Player #{id}", x: 32, y: 32, width: 30, height: 30},
       move_timestamp: timestamp()
     }
 
@@ -121,6 +133,21 @@ defmodule CanvasWeb.CanvasLive do
     {:noreply, socket}
   end
 
+  def handle_event("spawn-test-monster", _params, socket) do
+    MonsterSupervisor.spawn_test_monsters(1)
+    {:noreply, socket}
+  end
+
+  def handle_event("spawn-following-monster", _params, socket) do
+    MonsterSupervisor.spawn_test_monster_following_player(socket.assigns.player.id)
+    {:noreply, socket}
+  end
+
+  def handle_event("kill-monsters", _params, socket) do
+    MonsterSupervisor.kill_monsters()
+    {:noreply, socket}
+  end
+
   @impl true
   def handle_info({:update_player, player}, socket) do
     socket = push_character_update(socket, player)
@@ -163,7 +190,7 @@ defmodule CanvasWeb.CanvasLive do
 
   defp handle_colisions(new_socket, old_socket) do
     %{obstacles: obstacles} = Board.get_board()
-    player = new_socket.assigns.player
+    player = new_socket.assigns.player |> IO.inspect()
 
     with false <- ObjectColisions.collide?(player, obstacles),
          [] <- MonstersLookup.lookup_colliding_monsters(player) do

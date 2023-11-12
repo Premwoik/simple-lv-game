@@ -7,7 +7,7 @@ defmodule Canvas.Monster.MoveRandom do
   @behaviour MonsterMove
 
   @impl MonsterMove
-  def move(monster) do
+  def move(monster, _details) do
     random_legal_move(monster, Board.get_board())
   end
 
