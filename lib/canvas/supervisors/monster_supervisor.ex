@@ -2,6 +2,9 @@ defmodule Canvas.MonsterSupervisor do
   use DynamicSupervisor
 
   alias Canvas.MonsterProcess
+  alias Canvas.Constants
+
+  @monster_textures Constants.monster_outfits()
 
   def kill_monsters do
     for {:undefined, pid, :worker, [MonsterProcess]} <-
@@ -14,8 +17,17 @@ defmodule Canvas.MonsterSupervisor do
     for _ <- 1..n do
       id = System.unique_integer([:positive, :monotonic])
 
+      {texture, texture_animation} = Enum.random(@monster_textures)
+
       spawn_monster(
-        %{id: id, name: "Test Monster #{id}", x: 32, y: 32},
+        %{
+          id: id,
+          name: "Test Monster #{id}",
+          x: 32,
+          y: 32,
+          texture: texture,
+          texture_animation: texture_animation
+        },
         %{move_strategy: :target, target: %{x: 672, y: 256}}
       )
     end
@@ -23,9 +35,17 @@ defmodule Canvas.MonsterSupervisor do
 
   def spawn_test_monster_following_player(player_id) do
     id = System.unique_integer([:positive, :monotonic])
+    {texture, texture_animation} = Enum.random(@monster_textures)
 
     spawn_monster(
-      %{id: id, name: "Test Monster #{id}", x: 32, y: 32},
+      %{
+        id: id,
+        name: "Test Monster #{id}",
+        x: 32,
+        y: 32,
+        texture: texture,
+        texture_animation: texture_animation
+      },
       %{move_strategy: :follow, target: player_id}
     )
   end

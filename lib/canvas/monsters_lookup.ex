@@ -9,6 +9,7 @@ defmodule Canvas.MonstersLookup do
           width: non_neg_integer(),
           height: non_neg_integer(),
           name: String.t(),
+          orientation: 0..3,
           type: :monster | :player
         }
 

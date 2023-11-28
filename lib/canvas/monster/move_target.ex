@@ -12,6 +12,7 @@ defmodule Canvas.Monster.MoveTarget do
 
   @impl MonsterMove
   def move(monster, details) do
+    IO.inspect(monster)
     move_toward_target(monster, details)
   end
 
@@ -38,10 +39,10 @@ defmodule Canvas.Monster.MoveTarget do
     neighborhood = get_neighborhood_monsters(monster)
 
     [
-      Map.update!(monster, :y, &max(&1 - tile_size, 0)),
-      Map.update!(monster, :y, &min(&1 + tile_size, height)),
-      Map.update!(monster, :x, &max(&1 - tile_size, 0)),
-      Map.update!(monster, :x, &min(&1 + tile_size, width))
+      %{monster | y: max(monster.y - tile_size, 0), orientation: 1},
+      %{monster | y: min(monster.y + tile_size, height), orientation: 0},
+      %{monster | x: max(monster.x - tile_size, 0), orientation: 3},
+      %{monster | x: min(monster.x + tile_size, width), orientation: 2}
     ]
     |> Enum.filter(&allowed_move?(&1, obstacles, neighborhood, history))
     |> Enum.min_by(&distance_to_target(&1, target), fn -> nil end)

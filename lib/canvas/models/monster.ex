@@ -10,6 +10,8 @@ defmodule Canvas.Models.Monster do
     field :width, :integer, default: 30
     field :height, :integer, default: 30
     field :texture, :integer, default: 1
+    field :texture_animation, :integer, default: 1
+    field :orientation, :integer, default: 0
   end
 
   def changeset(monster, attrs) do

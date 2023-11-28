@@ -21,10 +21,10 @@ defmodule Canvas.Monster.MoveRandom do
 
     new_monster =
       case move do
-        :up -> Map.update!(monster, :y, &max(&1 - tile_size, 0))
-        :down -> Map.update!(monster, :y, &min(&1 + tile_size, height))
-        :left -> Map.update!(monster, :x, &max(&1 - tile_size, 0))
-        :right -> Map.update!(monster, :x, &min(&1 + tile_size, width))
+        :up -> %{monster | y: max(monster.y - tile_size, 0), orientation: 1}
+        :down -> %{monster | y: min(monster.y + tile_size, height), orientation: 0}
+        :left -> %{monster | x: max(monster.x - tile_size, 0), orientation: 3}
+        :right -> %{monster | x: min(monster.x + tile_size, width), orientation: 2}
       end
 
     with false <- ObjectColisions.collide?(new_monster, obstacles),

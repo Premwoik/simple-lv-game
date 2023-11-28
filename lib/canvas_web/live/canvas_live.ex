@@ -80,7 +80,15 @@ defmodule CanvasWeb.CanvasLive do
     id = System.unique_integer([:positive, :monotonic])
 
     data = %{
-      player: %Player{id: id, name: "Player #{id}", x: 32, y: 32, width: 30, height: 30},
+      player: %Player{
+        id: id,
+        name: "Player #{id}",
+        x: 32,
+        y: 32,
+        width: 30,
+        height: 30,
+        texture: 4117
+      },
       move_timestamp: timestamp()
     }
 
@@ -109,12 +117,16 @@ defmodule CanvasWeb.CanvasLive do
   end
 
   def handle_event("canvas-loaded", _params, socket) do
+    player = socket.assigns.player
+
     socket =
       MonstersLookup.lookup_area(0, 0, 800, 600)
+      |> Enum.filter(fn [id | _] -> id != player.id end)
       |> Enum.reduce(socket, fn [_, x, y, _, _, details], acc_socket ->
         details = Map.merge(details, %{x: x, y: y})
         push_character_update(acc_socket, details)
       end)
+      |> push_character_update(player)
 
     {:noreply, socket}
   end
@@ -204,25 +216,25 @@ defmodule CanvasWeb.CanvasLive do
 
   defp handle_move(key, socket) when key in @move_up_keys do
     old_player = socket.assigns.player
-    player = %{old_player | y: old_player.y - @move_step}
+    player = %{old_player | y: old_player.y - @move_step, orientation: 1}
     assign(socket, :player, player)
   end
 
   defp handle_move(key, socket) when key in @move_down_keys do
     old_player = socket.assigns.player
-    player = %{old_player | y: old_player.y + @move_step}
+    player = %{old_player | y: old_player.y + @move_step, orientation: 0}
     assign(socket, :player, player)
   end
 
   defp handle_move(key, socket) when key in @move_left_keys do
     old_player = socket.assigns.player
-    player = %{old_player | x: old_player.x - @move_step}
+    player = %{old_player | x: old_player.x - @move_step, orientation: 3}
     assign(socket, :player, player)
   end
 
   defp handle_move(key, socket) when key in @move_right_keys do
     old_player = socket.assigns.player
-    player = %{old_player | x: old_player.x + @move_step}
+    player = %{old_player | x: old_player.x + @move_step, orientation: 2}
     assign(socket, :player, player)
   end
 
@@ -235,9 +247,21 @@ defmodule CanvasWeb.CanvasLive do
   end
 
   defp push_character_update(socket, character) do
-    character = Map.take(character, [:id, :x, :y, :texture, :name])
+    character =
+      character
+      |> Map.take([:id, :x, :y, :name])
+      |> Map.put(
+        :texture,
+        character.texture + character.orientation * character.texture_animation
+      )
+      |> Map.put(:type, get_character_type(character))
+      |> IO.inspect()
+
     push_event(socket, @update_character_event, character)
   end
+
+  defp get_character_type(%Player{}), do: "player"
+  defp get_character_type(_), do: "monster"
 
   defp broadcast_self_update(%Socket{} = socket) do
     :ok = broadcast_self_update(socket.assigns.player)

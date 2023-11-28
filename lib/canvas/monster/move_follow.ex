@@ -7,12 +7,9 @@ defmodule Canvas.Monster.MoveFollow do
 
   @behaviour MonsterMove
 
-  @tile_size 32
-
   @impl MonsterMove
   def move(monster, details) do
     [{_, x, y, _, _, _}] = MonstersLookup.lookup(details.target)
-
     MoveTarget.move(monster, %{details | target: %{x: x, y: y}})
   end
 end

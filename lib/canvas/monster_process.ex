@@ -4,21 +4,13 @@ defmodule Canvas.MonsterProcess do
 
   alias Canvas.Constants
   alias Phoenix.PubSub
+  alias Canvas.Models.Monster
   alias Canvas.Monster.Move, as: MonsterMove
   alias Canvas.MonstersLookup
 
   @monster_tick 300
   @monster_topic Constants.monsters_topic()
   @history_size 3
-
-  typed_embedded_schema do
-    field :name, :string
-    field :x, :integer, default: 0
-    field :y, :integer, default: 0
-    field :width, :integer, default: 30
-    field :height, :integer, default: 30
-    field :texture, :integer, default: 1
-  end
 
   def start_link(init_arg) do
     GenStateMachine.start_link(__MODULE__, init_arg)
@@ -37,7 +29,7 @@ defmodule Canvas.MonsterProcess do
     data =
       %{
         tick_timer: make_ref(),
-        monster: struct(__MODULE__, monster),
+        monster: struct(Monster, monster),
         history: [],
         move_strategy: Map.get(opts, :move_strategy, :random),
         target: Map.get(opts, :target)

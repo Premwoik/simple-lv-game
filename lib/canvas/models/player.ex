@@ -9,6 +9,9 @@ defmodule Canvas.Models.Player do
     field :y, :integer, default: 0
     field :width, :integer, default: 30
     field :height, :integer, default: 30
+    field :texture, :integer, default: 0
+    field :texture_animation, :integer, default: 1
+    field :orientation, :integer, default: 0
   end
 
   def changeset(player, attrs) do
